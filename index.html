@@ -843,9 +843,10 @@ async function save(ns){
   try{ r=await sb.rpc('marble_save',{p_room:G.room,p_expected:expected,p_state:ns}); }
   catch(e){ r={error:e}; }
   G.busy=false;
-  if(r.error){ toast('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'); if(G.view==='game'&&G.reveal)renderDock(); return false; }
-  if(r.data!==true){ toast('다른 사람이 먼저 움직였어요. 화면을 다시 맞췄어요.'); refetch(); return false; }
+  if(r.error){ toast('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'); refreshControls(); return false; }
+  if(r.data!==true){ toast('다른 사람이 먼저 움직였어요. 화면을 다시 맞췄어요.'); refreshControls(); refetch(); return false; }
   applyRow({id:G.room,seats:G.seats,state:ns});
+  refreshControls();
   return true;
 }
 async function send(a,anyone){
@@ -921,17 +922,26 @@ async function shareLink(){
 $('shareBtn').addEventListener('click',shareLink);
 $('roomLink').addEventListener('focus',function(){this.select();});
 
-function applyRow(row,force){
+/* 버튼 상태(저장 중 잠금 등)를 지금 상태에 맞게 다시 그림 */
+function refreshControls(){
+  if(G.mode!=='online')return;
+  if(G.view==='game'&&G.reveal)renderDock();
+  else if(G.view==='room')renderLobby();
+}
+function applyRow(row){
   if(!row||row.id!==G.room)return;
-  var st=row.state||{status:'lobby',seq:0}, have=G.online?(G.online.seq||0):-1, seq=st.seq||0;
+  if(Array.isArray(row.seats))G.seats=row.seats;
+  var st=row.state;
+  /* 실시간 알림에 게임 상태가 빠져 오면(자리만 바뀐 경우 등) 자리만 반영 */
+  if(!st||typeof st!=='object'){ refreshControls(); return; }
+  var have=G.online?(G.online.seq||0):-1, seq=st.seq||0;
   if(seq<have)return;
-  if(row.seats)G.seats=row.seats;
   var changed=seq!==have;
   G.online=st;
   if(G.mode!=='online')return;
   G.state=st;
   if(changed)onState();
-  else if(G.view==='room')renderLobby();
+  else refreshControls();
 }
 async function refetch(){
   if(!sb||!G.room)return null;
